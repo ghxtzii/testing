@@ -142,13 +142,13 @@ getgenv().setting = {
         smoothvalue = 0.08
     },
     ESP = {
-        Enabled = true,
-        BoxEsp = true,
-        NameEsp = true,
-        hpesp = true,
-        Tracer = true,
-        Skeleton = true,
-        VisibilityCheck = true,
+        Enabled = false,
+        BoxEsp = false,
+        NameEsp = false,
+        hpesp = false,
+        Tracer = false,
+        Skeleton = false,
+        VisibilityCheck = false,
         Box_Color = Color3.new(0, 1, 0),
         Name_Color = Color3.new(1, 1, 1),
         Font = 2,
@@ -158,13 +158,13 @@ getgenv().setting = {
         BodyCham = "ForceField"
     },
     Self = {
-        Crosshair = true,
-        Chams = true
+        Crosshair = false,
+        Chams = false,
     },
     Misc = {
         CFrameSpeed = 2,
         TargetStrafe = false,
-        AntiAimview = false
+        AntiAimview = true,
     }
 }
 
