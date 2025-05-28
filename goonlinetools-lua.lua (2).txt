@@ -1,0 +1,1631 @@
+-- [Anti-Cheat Bypass]
+local g = getinfo or debug.getinfo
+local d = false
+local h = {}
+
+local x, y
+
+setthreadidentity(2)
+
+for i, v in getgc(true) do
+    if typeof(v) == "table" then
+        local a = rawget(v, "Detected")
+        local b = rawget(v, "Kill")
+
+        if typeof(a) == "function" and not x then
+            x = a
+
+            local o
+            o =
+                hookfunction(
+                x,
+                function(c, f, n)
+                    if c ~= "_" then
+                        if d then
+                        end
+                    end
+                    return true
+                end
+            )
+
+            table.insert(h, x)
+        end
+
+        if rawget(v, "Variables") and rawget(v, "Process") and typeof(b) == "function" and not y then
+            y = b
+            local o
+            o =
+                hookfunction(
+                y,
+                function(f)
+                    if d then
+                    end
+                end
+            )
+
+            table.insert(h, y)
+        end
+    end
+end
+
+local o
+o =
+    hookfunction(
+    getrenv().debug.info,
+    newcclosure(
+        function(...)
+            local a, f = ...
+
+            if x and a == x then
+                if d then
+                end
+                return coroutine.yield(coroutine.running())
+            end
+
+            return o(...)
+        end
+    )
+)
+
+setthreadidentity(7)
+
+if game.PlaceId == 7213786345 or game.PlaceId == 16033173781 or game.PlaceId == 2788229376 then
+    local a = {
+        "BANREMOTE",
+        "PERMAIDBAN",
+        "KICKREMOTE",
+        "BR_KICKPC",
+        "BR_KICKMOBILE",
+        "OneMoreTime",
+        "CHECKER_1",
+        "TeleportDetect",
+        "CHECKER",
+        "GUI_CHECK",
+        "checkingSPEED",
+        "PERMA-BAN",
+        "PERMABAN",
+        "BreathingHAMON",
+        "JJARC",
+        "TakePoisonDamage",
+        "FORCEFIELD",
+        "Christmas_Sock",
+        "VirusCough",
+        "Symbiote",
+        "Symbioted",
+        "RequestAFKDisplay"
+    }
+
+    local Remote
+    local FireHook
+    FireHook =
+        hookmetamethod(
+        game,
+        "__namecall",
+        function(...)
+            local c = {...}
+            local self, d = c[1], getnamecallmethod()
+            if d == "FireServer" and self == Remote and table.find(a, c[2]) then
+                return
+            end
+            return FireHook(...)
+        end
+    )
+
+    local RemoteNames = {"MainEvent", "Bullets", "Remote", "MAINEVENT"}
+    for _, remote in pairs(game.ReplicatedStorage:GetDescendants()) do
+        if table.find(RemoteNames, remote.Name) and remote:IsA("RemoteEvent") then
+            Remote = remote
+            break
+        end
+    end
+
+    return Remote
+end
+
+-- [Base Settings]
+getgenv().setting = {
+    aimpart = "UpperTorso",
+    airpart = "UpperTorso",
+    targetaim = true,
+    antigroundshoot = false,
+    hitsound = "RIFK7",
+    hiteffect = "Crescent Slash",
+    prediction = {
+        autopred = false,
+        prediction = 0.13,
+        jumpoffset = 0.08,
+        delay = 0.2
+    },
+    camlock = {
+        enabled = true,
+        smoothenabled = true,
+        smoothvalue = 0.08
+    },
+    ESP = {
+        Enabled = true,
+        BoxEsp = true,
+        NameEsp = true,
+        hpesp = true,
+        Tracer = true,
+        Skeleton = true,
+        VisibilityCheck = true,
+        Box_Color = Color3.new(0, 1, 0),
+        Name_Color = Color3.new(1, 1, 1),
+        Font = 2,
+        Font_Size = 13
+    },
+    Visuals = {
+        BodyCham = "ForceField"
+    },
+    Self = {
+        Crosshair = true,
+        Chams = true
+    },
+    Misc = {
+        CFrameSpeed = 2,
+        TargetStrafe = false,
+        AntiAimview = false
+    }
+}
+
+-- [Services and Vars]
+local Players = game:GetService("Players")
+local Workspace = game:GetService("Workspace")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local RunService = game:GetService("RunService")
+local Camera = Workspace.CurrentCamera
+local LocalPlayer = Players.LocalPlayer
+local Mouse = LocalPlayer:GetMouse()
+
+local SilentAimTarget = nil
+local Prediction = setting.prediction.prediction
+local AirPart = setting.airpart
+local Smoothness = setting.camlock.smoothvalue
+
+-- [Get AimPart / AirPart]
+local function GetAimPart(char)
+    return char:FindFirstChild(setting.aimpart) or char:FindFirstChild("HumanoidRootPart")
+end
+
+local function GetAirPart(char)
+    return char:FindFirstChild(setting.airpart) or char:FindFirstChild("Head")
+end
+
+-- [Closest Target]
+local function FindClosestTarget()
+    local closest, shortest = nil, math.huge
+    local screenCenter = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y / 2)
+
+    for _, plr in ipairs(Players:GetPlayers()) do
+        if plr ~= LocalPlayer and plr.Character and plr.Character:FindFirstChild("HumanoidRootPart") then
+            local pos, visible = Camera:WorldToViewportPoint(plr.Character.HumanoidRootPart.Position)
+            local mag = (screenCenter - Vector2.new(pos.X, pos.Y)).Magnitude
+            if mag < shortest and visible then
+                closest = plr
+                shortest = mag
+            end
+        end
+    end
+
+    return closest
+end
+
+-- [Camlock RenderStepped]
+RunService.RenderStepped:Connect(
+    function()
+        if
+            setting.camlock.enabled and SilentAimTarget and SilentAimTarget.Character and
+                SilentAimTarget.Character:FindFirstChild("Humanoid")
+         then
+            local character = SilentAimTarget.Character
+            local targetPart
+
+            if character.Humanoid.FloorMaterial == Enum.Material.Air then
+                targetPart = GetAirPart(character)
+            else
+                targetPart = GetAimPart(character)
+            end
+
+            if targetPart then
+                local predicted = targetPart.Position + (targetPart.Velocity * Prediction)
+                predicted =
+                    Vector3.new(
+                    predicted.X,
+                    predicted.Y + (setting.antigroundshoot and setting.prediction.jumpoffset or 0),
+                    predicted.Z
+                )
+                local targetCF = CFrame.new(Camera.CFrame.Position, predicted)
+
+                if setting.camlock.smoothenabled then
+                    Camera.CFrame = Camera.CFrame:Lerp(targetCF, Smoothness)
+                else
+                    Camera.CFrame = targetCF
+                end
+            end
+        end
+    end
+)
+
+-- [Namecall Hook]
+local mt = getrawmetatable(game)
+local oldNamecall = mt.__namecall
+setreadonly(mt, false)
+
+mt.__namecall =
+    newcclosure(
+    function(self, ...)
+        local method = getnamecallmethod()
+        local args = {...}
+
+        if tostring(self) == "UpdateMousePos" and setting.targetaim and SilentAimTarget and SilentAimTarget.Character then
+            local part =
+                SilentAimTarget.Character:FindFirstChild(setting.aimpart) or
+                SilentAimTarget.Character:FindFirstChild("HumanoidRootPart")
+            if part then
+                args[1] = part.Position + (part.Velocity * Prediction)
+            end
+            return oldNamecall(self, unpack(args))
+        end
+
+        return oldNamecall(self, ...)
+    end
+)
+
+setreadonly(mt, true)
+
+-- [Hit Sounds]
+local Sounds = {
+    RIFK7 = "rbxassetid://9102080552",
+    UwU = "rbxassetid://8679659744",
+    Vine = "rbxassetid://5332680810",
+    Pop = "rbxassetid://198598793",
+    Bonk = "rbxassetid://5766898159",
+    Minecraft = "rbxassetid://5869422451",
+    Gamesense = "rbxassetid://4817809188",
+    Bamboo = "rbxassetid://3769434519",
+    Bruh = "rbxassetid://4578740568",
+    Click = "rbxassetid://8053704437",
+    Ding = "rbxassetid://7149516994",
+    Laser = "rbxassetid://7837461331",
+    Mario = "rbxassetid://2815207981",
+    Steve = "rbxassetid://4965083997",
+    CallofDuty = "rbxassetid://5952120301",
+    TF2Critical = "rbxassetid://296102734",
+    Saber = "rbxassetid://8415678813",
+    Baimware = "rbxassetid://3124331820",
+    Osu = "rbxassetid://7149255551",
+    Slime = "rbxassetid://6916371803",
+    AmongUs = "rbxassetid://5700183626",
+    One = "rbxassetid://7380502345"
+}
+
+-- Play hit sound
+function PlayHitSound()
+    local soundId = Sounds[setting.hitsound]
+    if soundId then
+        local sound = Instance.new("Sound")
+        sound.SoundId = soundId
+        sound.Volume = 1
+        sound.PlayOnRemove = true
+        sound.Parent = game:GetService("SoundService")
+        sound:Destroy()
+    end
+end
+
+-- Trigger hit effect (particles)
+
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Workspace = game:GetService("Workspace")
+local Storage = {HitEffect = {}}
+
+--// Hit Effects
+do
+    --// Crescent Slash
+
+    do
+        local Insane = Instance.new("Part")
+        Insane.Parent = ReplicatedStorage
+
+        local Attachment = Instance.new("Attachment")
+        Attachment.Name = "Attachment"
+        Attachment.Parent = Insane
+
+        Storage.HitEffect["Crescent Slash"] = Attachment
+
+        local Glow = Instance.new("ParticleEmitter")
+        Glow.Name = "Glow"
+        Glow.Lifetime = NumberRange.new(0.16, 0.16)
+        Glow.Transparency =
+            NumberSequence.new(
+            {
+                NumberSequenceKeypoint.new(0, 1),
+                NumberSequenceKeypoint.new(0.1421725, 0.6182796),
+                NumberSequenceKeypoint.new(1, 1)
+            }
+        )
+        Glow.Color = ColorSequence.new(Color3.fromRGB(91, 177, 252))
+        Glow.Speed = NumberRange.new(0, 0)
+        Glow.Brightness = 5
+        Glow.Size = NumberSequence.new(9.1873131, 16.5032349)
+        Glow.Enabled = false
+        Glow.ZOffset = -0.0565939
+        Glow.Rate = 50
+        Glow.Texture = "rbxassetid://8708637750"
+
+        local Gradient1 = Instance.new("ParticleEmitter")
+        Gradient1.Name = "Gradient1"
+        Gradient1.Lifetime = NumberRange.new(0.3, 0.3)
+        Gradient1.Transparency =
+            NumberSequence.new(
+            {NumberSequenceKeypoint.new(0, 1), NumberSequenceKeypoint.new(0.15, 0.3), NumberSequenceKeypoint.new(1, 1)}
+        )
+        Gradient1.Color = ColorSequence.new(Color3.fromRGB(115, 201, 255))
+        Gradient1.Speed = NumberRange.new(0, 0)
+        Gradient1.Brightness = 6
+        Gradient1.Size = NumberSequence.new(0, 11.6261358)
+        Gradient1.Enabled = false
+        Gradient1.ZOffset = 0.9187313
+        Gradient1.Rate = 50
+        Gradient1.Texture = "rbxassetid://8196169974"
+        Gradient1.Parent = Attachment
+
+        local Shards = Instance.new("ParticleEmitter")
+        Shards.Name = "Shards"
+        Shards.Lifetime = NumberRange.new(0.19, 0.7)
+        Shards.SpreadAngle = Vector2.new(-90, 90)
+        Shards.Color = ColorSequence.new(Color3.fromRGB(108, 184, 255))
+        Shards.Drag = 10
+        Shards.VelocitySpread = -90
+        Shards.Squash =
+            NumberSequence.new(
+            {
+                NumberSequenceKeypoint.new(0, 1),
+                NumberSequenceKeypoint.new(0.5705521, 0.4125001),
+                NumberSequenceKeypoint.new(1, -0.9375)
+            }
+        )
+        Shards.Speed = NumberRange.new(97.7530136, 146.9970093)
+        Shards.Brightness = 4
+        Shards.Size =
+            NumberSequence.new(
+            {
+                NumberSequenceKeypoint.new(0, 0),
+                NumberSequenceKeypoint.new(0.284774, 1.2389833, 0.1534118),
+                NumberSequenceKeypoint.new(1, 0)
+            }
+        )
+        Shards.Enabled = false
+        Shards.Acceleration = Vector3.new(0, -56.961341857910156, 0)
+        Shards.ZOffset = 0.5705321
+        Shards.Rate = 50
+        Shards.Texture = "rbxassetid://8030734851"
+        Shards.Rotation = NumberRange.new(90, 90)
+        Shards.Orientation = Enum.ParticleOrientation.VelocityParallel
+        Shards.Parent = Attachment
+
+        local ShardsDark = Instance.new("ParticleEmitter")
+        ShardsDark.Name = "ShardsDark"
+        ShardsDark.Lifetime = NumberRange.new(0.19, 0.35)
+        ShardsDark.SpreadAngle = Vector2.new(-90, 90)
+        ShardsDark.Color = ColorSequence.new(Color3.fromRGB(108, 184, 255))
+        ShardsDark.Drag = 10
+        ShardsDark.VelocitySpread = -90
+        ShardsDark.Squash =
+            NumberSequence.new(
+            {
+                NumberSequenceKeypoint.new(0, 1),
+                NumberSequenceKeypoint.new(0.5705521, 0.4125001),
+                NumberSequenceKeypoint.new(1, -0.9375)
+            }
+        )
+        ShardsDark.Speed = NumberRange.new(97.7530136, 146.9970093)
+        ShardsDark.Brightness = 4
+        ShardsDark.Size =
+            NumberSequence.new(
+            {
+                NumberSequenceKeypoint.new(0, 0),
+                NumberSequenceKeypoint.new(0.290774, 0.6734411, 0.1534118),
+                NumberSequenceKeypoint.new(1, 0)
+            }
+        )
+        ShardsDark.Enabled = false
+        ShardsDark.ZOffset = 0.5705321
+        ShardsDark.Rate = 50
+        ShardsDark.Texture = "rbxassetid://8030734851"
+        ShardsDark.Rotation = NumberRange.new(90, 90)
+        ShardsDark.Orientation = Enum.ParticleOrientation.VelocityParallel
+        ShardsDark.Parent = Attachment
+
+        local Specs = Instance.new("ParticleEmitter")
+        Specs.Name = "Specs"
+        Specs.Lifetime = NumberRange.new(0.33, 1.4)
+        Specs.SpreadAngle = Vector2.new(360, -1000)
+        Specs.Color = ColorSequence.new(Color3.fromRGB(98, 174, 255))
+        Specs.Drag = 10
+        Specs.VelocitySpread = 360
+        Specs.Speed = NumberRange.new(36.7492523, 146.9970093)
+        Specs.Brightness = 7
+        Specs.Size =
+            NumberSequence.new(
+            {
+                NumberSequenceKeypoint.new(0, 0),
+                NumberSequenceKeypoint.new(0.200774, 2.0311937, 0.4363973),
+                NumberSequenceKeypoint.new(1, 0)
+            }
+        )
+        Specs.Enabled = false
+        Specs.Acceleration = Vector3.new(0, 36.74925231933594, 0)
+        Specs.Rate = 50
+        Specs.Texture = "rbxassetid://8030760338"
+        Specs.EmissionDirection = Enum.NormalId.Right
+        Specs.Parent = Attachment
+
+        local Specs1 = Instance.new("ParticleEmitter")
+        Specs1.Name = "Specs"
+        Specs1.Lifetime = NumberRange.new(0.33, 1.75)
+        Specs1.SpreadAngle = Vector2.new(90, -90)
+        Specs1.Color = ColorSequence.new(Color3.fromRGB(106, 171, 255))
+        Specs1.Drag = 9
+        Specs1.VelocitySpread = 90
+        Specs1.Speed = NumberRange.new(42.2616425, 73.4985046)
+        Specs1.Brightness = 6
+        Specs1.Size =
+            NumberSequence.new(
+            {
+                NumberSequenceKeypoint.new(0, 0),
+                NumberSequenceKeypoint.new(0.210774, 0.3978962, 0.1855686),
+                NumberSequenceKeypoint.new(1, 0)
+            }
+        )
+        Specs1.Enabled = false
+        Specs1.Acceleration = Vector3.new(0, -20.21208953857422, 0)
+        Specs1.ZOffset = 0.5144895
+        Specs1.Rate = 50
+        Specs1.Texture = "rbxassetid://8030760338"
+        Specs1.Parent = Attachment
+
+        local Specs2 = Instance.new("ParticleEmitter")
+        Specs2.Name = "Specs"
+        Specs2.Lifetime = NumberRange.new(0.19, 1.2)
+        Specs2.SpreadAngle = Vector2.new(360, -1000)
+        Specs2.Color = ColorSequence.new(Color3.fromRGB(98, 174, 255))
+        Specs2.Drag = 10
+        Specs2.VelocitySpread = 360
+        Specs2.Speed = NumberRange.new(36.7492523, 146.9970093)
+        Specs2.Brightness = 7
+        Specs2.Size =
+            NumberSequence.new(
+            {
+                NumberSequenceKeypoint.new(0, 0),
+                NumberSequenceKeypoint.new(0.200774, 2.0311937, 0.4363973),
+                NumberSequenceKeypoint.new(1, 0)
+            }
+        )
+        Specs2.Enabled = false
+        Specs2.Acceleration = Vector3.new(0, 36.74925231933594, 0)
+        Specs2.Rate = 50
+        Specs2.Texture = "rbxassetid://8030760338"
+        Specs2.EmissionDirection = Enum.NormalId.Right
+        Specs2.Parent = Attachment
+
+        local Specs21 = Instance.new("ParticleEmitter")
+        Specs21.Name = "Specs2"
+        Specs21.Lifetime = NumberRange.new(0.19, 1.35)
+        Specs21.SpreadAngle = Vector2.new(90, -90)
+        Specs21.Color = ColorSequence.new(Color3.fromRGB(106, 171, 255))
+        Specs21.Drag = 12
+        Specs21.VelocitySpread = 90
+        Specs21.Speed = NumberRange.new(42.2616425, 73.4985046)
+        Specs21.Brightness = 6
+        Specs21.Size =
+            NumberSequence.new(
+            {
+                NumberSequenceKeypoint.new(0, 0),
+                NumberSequenceKeypoint.new(0.216774, 0.5721694, 0.1855686),
+                NumberSequenceKeypoint.new(1, 0)
+            }
+        )
+        Specs21.Enabled = false
+        Specs21.Acceleration = Vector3.new(0, -20.21208953857422, 0)
+        Specs21.ZOffset = 0.5144895
+        Specs21.Rate = 50
+        Specs21.Texture = "rbxassetid://8030760338"
+        Specs21.Parent = Attachment
+
+        local ddddddddddddddddddd = Instance.new("ParticleEmitter")
+        ddddddddddddddddddd.Name = "ddddddddddddddddddd"
+        ddddddddddddddddddd.Lifetime = NumberRange.new(0.19, 0.37)
+        ddddddddddddddddddd.SpreadAngle = Vector2.new(90, -90)
+        ddddddddddddddddddd.LockedToPart = true
+        ddddddddddddddddddd.Transparency =
+            NumberSequence.new(
+            {
+                NumberSequenceKeypoint.new(0, 0),
+                NumberSequenceKeypoint.new(0.6429392, 0),
+                NumberSequenceKeypoint.new(1, 0)
+            }
+        )
+        ddddddddddddddddddd.LightEmission = 1
+        ddddddddddddddddddd.Color = ColorSequence.new(Color3.fromRGB(90, 184, 255), Color3.fromRGB(165, 251, 255))
+        ddddddddddddddddddd.Drag = 6
+        ddddddddddddddddddd.TimeScale = 0.7
+        ddddddddddddddddddd.VelocitySpread = 90
+        ddddddddddddddddddd.Speed = NumberRange.new(81.5833435, 110.2477646)
+        ddddddddddddddddddd.Size =
+            NumberSequence.new(
+            {
+                NumberSequenceKeypoint.new(0, 0),
+                NumberSequenceKeypoint.new(0.410774, 0.6711507, 0.3356177),
+                NumberSequenceKeypoint.new(1, 0)
+            }
+        )
+        ddddddddddddddddddd.Enabled = false
+        ddddddddddddddddddd.Acceleration = Vector3.new(0, -81.58334350585938, 0)
+        ddddddddddddddddddd.ZOffset = 0.8345273
+        ddddddddddddddddddd.Rate = 50
+        ddddddddddddddddddd.Texture = "rbxassetid://1053546634"
+        ddddddddddddddddddd.RotSpeed = NumberRange.new(-444, 166)
+        ddddddddddddddddddd.Rotation = NumberRange.new(-360, 360)
+        ddddddddddddddddddd.Parent = Attachment
+
+        local large_shard = Instance.new("ParticleEmitter")
+        large_shard.Name = "large_shard"
+        large_shard.Lifetime = NumberRange.new(0.19, 0.28)
+        large_shard.SpreadAngle = Vector2.new(-90, 90)
+        large_shard.Color = ColorSequence.new(Color3.fromRGB(108, 184, 255))
+        large_shard.Drag = 10
+        large_shard.VelocitySpread = -90
+        large_shard.Squash =
+            NumberSequence.new(
+            {
+                NumberSequenceKeypoint.new(0, 1),
+                NumberSequenceKeypoint.new(0.5705521, 0.4125001),
+                NumberSequenceKeypoint.new(1, -0.9375)
+            }
+        )
+        large_shard.Speed = NumberRange.new(97.7530136, 146.9970093)
+        large_shard.Brightness = 4
+        large_shard.Size =
+            NumberSequence.new(
+            {
+                NumberSequenceKeypoint.new(0, 0),
+                NumberSequenceKeypoint.new(0.260774, 3.515605, 0.1534118),
+                NumberSequenceKeypoint.new(1, 0)
+            }
+        )
+        large_shard.Enabled = false
+        large_shard.ZOffset = 0.5705321
+        large_shard.Rate = 50
+        large_shard.Texture = "rbxassetid://8030734851"
+        large_shard.Rotation = NumberRange.new(90, 90)
+        large_shard.Orientation = Enum.ParticleOrientation.VelocityParallel
+        large_shard.Parent = Attachment
+
+        local out_Specs = Instance.new("ParticleEmitter")
+        out_Specs.Name = "out_Specs"
+        out_Specs.Lifetime = NumberRange.new(0.19, 1)
+        out_Specs.SpreadAngle = Vector2.new(44, -1000)
+        out_Specs.Color = ColorSequence.new(Color3.fromRGB(98, 174, 255))
+        out_Specs.Drag = 10
+        out_Specs.VelocitySpread = 44
+        out_Specs.Speed = NumberRange.new(36.7492523, 146.9970093)
+        out_Specs.Brightness = 7
+        out_Specs.Size =
+            NumberSequence.new(
+            {
+                NumberSequenceKeypoint.new(0, 0),
+                NumberSequenceKeypoint.new(0.244774, 0.5469525, 0.1433053),
+                NumberSequenceKeypoint.new(1, 0)
+            }
+        )
+        out_Specs.Enabled = false
+        out_Specs.Acceleration = Vector3.new(0, -3.215559720993042, 0)
+        out_Specs.Rate = 50
+        out_Specs.Texture = "rbxassetid://8030760338"
+        out_Specs.EmissionDirection = Enum.NormalId.Right
+        out_Specs.Parent = Attachment
+
+        local Effect = Instance.new("ParticleEmitter")
+        Effect.Name = "Effect"
+        Effect.Lifetime = NumberRange.new(0.4, 0.7)
+        Effect.FlipbookLayout = Enum.ParticleFlipbookLayout.Grid4x4
+        Effect.SpreadAngle = Vector2.new(360, -360)
+        Effect.LockedToPart = true
+        Effect.Transparency =
+            NumberSequence.new(
+            {
+                NumberSequenceKeypoint.new(0, 1),
+                NumberSequenceKeypoint.new(0.1070999, 0.19375),
+                NumberSequenceKeypoint.new(0.7761194, 0.88125),
+                NumberSequenceKeypoint.new(1, 1)
+            }
+        )
+        Effect.LightEmission = 1
+        Effect.Color = ColorSequence.new(Color3.fromRGB(92, 161, 252))
+        Effect.Drag = 1
+        Effect.VelocitySpread = 360
+        Effect.Speed = NumberRange.new(0.0036749, 0.0036749)
+        Effect.Brightness = 2.0999999
+        Effect.Size = NumberSequence.new(6.9680691, 9.9213123)
+        Effect.Enabled = false
+        Effect.ZOffset = 0.4777403
+        Effect.Rate = 50
+        Effect.Texture = "rbxassetid://9484012464"
+        Effect.RotSpeed = NumberRange.new(-150, -150)
+        Effect.FlipbookMode = Enum.ParticleFlipbookMode.OneShot
+        Effect.Rotation = NumberRange.new(50, 50)
+        Effect.Orientation = Enum.ParticleOrientation.VelocityPerpendicular
+        Effect.Parent = Attachment
+
+        local Crescents = Instance.new("ParticleEmitter")
+        Crescents.Name = "Crescents"
+        Crescents.Lifetime = NumberRange.new(0.19, 0.38)
+        Crescents.SpreadAngle = Vector2.new(-360, 360)
+        Crescents.Transparency =
+            NumberSequence.new(
+            {
+                NumberSequenceKeypoint.new(0, 1),
+                NumberSequenceKeypoint.new(0.1932907, 0),
+                NumberSequenceKeypoint.new(0.778754, 0),
+                NumberSequenceKeypoint.new(1, 1)
+            }
+        )
+        Crescents.LightEmission = 1
+        Crescents.Color = ColorSequence.new(Color3.fromRGB(92, 161, 252))
+        Crescents.VelocitySpread = -360
+        Crescents.Speed = NumberRange.new(0.0826858, 0.0826858)
+        Crescents.Brightness = 20
+        Crescents.Size =
+            NumberSequence.new(
+            {
+                NumberSequenceKeypoint.new(0, 0),
+                NumberSequenceKeypoint.new(0.398774, 8.8026266, 2.2834616),
+                NumberSequenceKeypoint.new(1, 11.477972, 1.860431)
+            }
+        )
+        Crescents.Enabled = false
+        Crescents.ZOffset = 0.4542207
+        Crescents.Rate = 50
+        Crescents.Texture = "rbxassetid://12509373457"
+        Crescents.RotSpeed = NumberRange.new(800, 1000)
+        Crescents.Rotation = NumberRange.new(-360, 360)
+        Crescents.Orientation = Enum.ParticleOrientation.VelocityPerpendicular
+        Crescents.Parent = Attachment
+
+        Insane.Parent = Workspace
+    end
+
+    do --// Cosmic Explosion
+        local Part = Instance.new("Part")
+
+        Part.Parent = ReplicatedStorage
+
+        local Attachment = Instance.new("Attachment")
+        Attachment.Name = "Attachment"
+        Attachment.Parent = Part
+
+        Storage.HitEffect["Cosmic Explosion"] = Attachment
+
+        local Glow = Instance.new("ParticleEmitter")
+        Glow.Name = "Glow"
+        Glow.Lifetime = NumberRange.new(0.16, 0.16)
+        Glow.Transparency =
+            NumberSequence.new(
+            {
+                NumberSequenceKeypoint.new(0, 1),
+                NumberSequenceKeypoint.new(0.1421725, 0.6182796),
+                NumberSequenceKeypoint.new(1, 1)
+            }
+        )
+        Glow.Color = ColorSequence.new(Color3.fromRGB(173, 82, 252))
+        Glow.Speed = NumberRange.new(0, 0)
+        Glow.Brightness = 5
+        Glow.Size = NumberSequence.new(9.1873131, 16.5032349)
+        Glow.Enabled = false
+        Glow.ZOffset = -0.0565939
+        Glow.Rate = 50
+        Glow.Texture = "rbxassetid://8708637750"
+        Glow.Parent = Attachment
+
+        local Effect = Instance.new("ParticleEmitter")
+        Effect.Name = "Effect"
+        Effect.Lifetime = NumberRange.new(0.4, 0.7)
+        Effect.FlipbookLayout = Enum.ParticleFlipbookLayout.Grid4x4
+        Effect.SpreadAngle = Vector2.new(360, -360)
+        Effect.LockedToPart = true
+        Effect.Transparency =
+            NumberSequence.new(
+            {
+                NumberSequenceKeypoint.new(0, 1),
+                NumberSequenceKeypoint.new(0.1070999, 0.19375),
+                NumberSequenceKeypoint.new(0.7761194, 0.88125),
+                NumberSequenceKeypoint.new(1, 1)
+            }
+        )
+        Effect.LightEmission = 1
+        Effect.Color = ColorSequence.new(Color3.fromRGB(173, 82, 252))
+        Effect.Drag = 1
+        Effect.VelocitySpread = 360
+        Effect.Speed = NumberRange.new(0.0036749, 0.0036749)
+        Effect.Brightness = 2.0999999
+        Effect.Size = NumberSequence.new(6.9680691, 9.9213123)
+        Effect.Enabled = false
+        Effect.ZOffset = 0.4777403
+        Effect.Rate = 50
+        Effect.Texture = "rbxassetid://9484012464"
+        Effect.RotSpeed = NumberRange.new(-150, -150)
+        Effect.FlipbookMode = Enum.ParticleFlipbookMode.OneShot
+        Effect.Rotation = NumberRange.new(50, 50)
+        Effect.Orientation = Enum.ParticleOrientation.VelocityPerpendicular
+        Effect.Parent = Attachment
+
+        local Gradient1 = Instance.new("ParticleEmitter")
+        Gradient1.Name = "Gradient1"
+        Gradient1.Lifetime = NumberRange.new(0.3, 0.3)
+        Gradient1.Transparency =
+            NumberSequence.new(
+            {NumberSequenceKeypoint.new(0, 1), NumberSequenceKeypoint.new(0.15, 0.3), NumberSequenceKeypoint.new(1, 1)}
+        )
+        Gradient1.Color = ColorSequence.new(Color3.fromRGB(173, 82, 252))
+        Gradient1.Speed = NumberRange.new(0, 0)
+        Gradient1.Brightness = 6
+        Gradient1.Size = NumberSequence.new(0, 11.6261358)
+        Gradient1.Enabled = false
+        Gradient1.ZOffset = 0.9187313
+        Gradient1.Rate = 50
+        Gradient1.Texture = "rbxassetid://8196169974"
+        Gradient1.Parent = Attachment
+
+        local Shards = Instance.new("ParticleEmitter")
+        Shards.Name = "Shards"
+        Shards.Lifetime = NumberRange.new(0.19, 0.7)
+        Shards.SpreadAngle = Vector2.new(-90, 90)
+        Shards.Color = ColorSequence.new(Color3.fromRGB(173, 82, 252))
+        Shards.Drag = 10
+        Shards.VelocitySpread = -90
+        Shards.Squash =
+            NumberSequence.new(
+            {
+                NumberSequenceKeypoint.new(0, 1),
+                NumberSequenceKeypoint.new(0.5705521, 0.4125001),
+                NumberSequenceKeypoint.new(1, -0.9375)
+            }
+        )
+        Shards.Speed = NumberRange.new(97.7530136, 146.9970093)
+        Shards.Brightness = 4
+        Shards.Size =
+            NumberSequence.new(
+            {
+                NumberSequenceKeypoint.new(0, 0),
+                NumberSequenceKeypoint.new(0.284774, 1.2389833, 0.1534118),
+                NumberSequenceKeypoint.new(1, 0)
+            }
+        )
+        Shards.Enabled = false
+        Shards.Acceleration = Vector3.new(0, -56.961341857910156, 0)
+        Shards.ZOffset = 0.5705321
+        Shards.Rate = 50
+        Shards.Texture = "rbxassetid://8030734851"
+        Shards.Rotation = NumberRange.new(90, 90)
+        Shards.Orientation = Enum.ParticleOrientation.VelocityParallel
+        Shards.Parent = Attachment
+
+        local Crescents = Instance.new("ParticleEmitter")
+        Crescents.Name = "Crescents"
+        Crescents.Lifetime = NumberRange.new(0.19, 0.38)
+        Crescents.SpreadAngle = Vector2.new(-360, 360)
+        Crescents.Transparency =
+            NumberSequence.new(
+            {
+                NumberSequenceKeypoint.new(0, 1),
+                NumberSequenceKeypoint.new(0.1932907, 0),
+                NumberSequenceKeypoint.new(0.778754, 0),
+                NumberSequenceKeypoint.new(1, 1)
+            }
+        )
+        Crescents.LightEmission = 10
+        Crescents.Color = ColorSequence.new(Color3.fromRGB(160, 96, 255))
+        Crescents.VelocitySpread = -360
+        Crescents.Speed = NumberRange.new(0.0826858, 0.0826858)
+        Crescents.Brightness = 4
+        Crescents.Size =
+            NumberSequence.new(
+            {
+                NumberSequenceKeypoint.new(0, 0),
+                NumberSequenceKeypoint.new(0.398774, 8.8026266, 2.2834616),
+                NumberSequenceKeypoint.new(1, 11.477972, 1.860431)
+            }
+        )
+        Crescents.Enabled = false
+        Crescents.ZOffset = 0.4542207
+        Crescents.Rate = 50
+        Crescents.Texture = "rbxassetid://12509373457"
+        Crescents.RotSpeed = NumberRange.new(800, 1000)
+        Crescents.Rotation = NumberRange.new(-360, 360)
+        Crescents.Orientation = Enum.ParticleOrientation.VelocityPerpendicular
+        Crescents.Parent = Attachment
+
+        local ParticleEmitter2 = Instance.new("ParticleEmitter")
+        ParticleEmitter2.Name = "ParticleEmitter2"
+        ParticleEmitter2.FlipbookFramerate = NumberRange.new(20, 20)
+        ParticleEmitter2.Lifetime = NumberRange.new(0.19, 0.38)
+        ParticleEmitter2.FlipbookLayout = Enum.ParticleFlipbookLayout.Grid4x4
+        ParticleEmitter2.SpreadAngle = Vector2.new(360, 360)
+        ParticleEmitter2.Transparency =
+            NumberSequence.new(
+            {
+                NumberSequenceKeypoint.new(0, 1),
+                NumberSequenceKeypoint.new(0.209842, 0.5),
+                NumberSequenceKeypoint.new(0.503842, 0.263333),
+                NumberSequenceKeypoint.new(0.799842, 0.5),
+                NumberSequenceKeypoint.new(1, 1)
+            }
+        )
+        ParticleEmitter2.LightEmission = 1
+        ParticleEmitter2.Color = ColorSequence.new(Color3.fromRGB(173, 82, 252))
+        ParticleEmitter2.VelocitySpread = 360
+        ParticleEmitter2.Speed = NumberRange.new(0.0161231, 0.0161231)
+        ParticleEmitter2.Size =
+            NumberSequence.new(
+            {
+                NumberSequenceKeypoint.new(0, 4.3125),
+                NumberSequenceKeypoint.new(0.3985056, 7.9375),
+                NumberSequenceKeypoint.new(1, 10)
+            }
+        )
+        ParticleEmitter2.Enabled = false
+        ParticleEmitter2.ZOffset = 0.15
+        ParticleEmitter2.Rate = 100
+        ParticleEmitter2.Texture = "http://www.roblox.com/asset/?id=12394566430"
+        ParticleEmitter2.FlipbookMode = Enum.ParticleFlipbookMode.OneShot
+        ParticleEmitter2.Rotation = NumberRange.new(39, 999)
+        ParticleEmitter2.Orientation = Enum.ParticleOrientation.VelocityParallel
+        ParticleEmitter2.Parent = Attachment
+
+        Part.Parent = Workspace
+    end
+
+    do --// Coom
+        local Part = Instance.new("Part")
+
+        Part.Parent = ReplicatedStorage
+
+        local Attachment = Instance.new("Attachment")
+        Attachment.Parent = Part
+
+        Storage.HitEffect["Coom"] = Attachment
+
+        local Foam = Instance.new("ParticleEmitter")
+        Foam.Name = "Foam"
+        Foam.LightInfluence = 0.5
+        Foam.Lifetime = NumberRange.new(1, 1)
+        Foam.SpreadAngle = Vector2.new(360, -360)
+        Foam.VelocitySpread = 360
+        Foam.Squash = NumberSequence.new(1)
+        Foam.Speed = NumberRange.new(20, 20)
+        Foam.Brightness = 2.5
+        Foam.Size =
+            NumberSequence.new(
+            {
+                NumberSequenceKeypoint.new(0, 0),
+                NumberSequenceKeypoint.new(0.1016692, 0.6508875, 0.6508875),
+                NumberSequenceKeypoint.new(0.6494689, 1.4201183, 0.4127519),
+                NumberSequenceKeypoint.new(1, 0)
+            }
+        )
+        Foam.Enabled = false
+        Foam.Acceleration = Vector3.new(0, -66.04029846191406, 0)
+        Foam.Rate = 100
+        Foam.Texture = "rbxassetid://8297030850"
+        Foam.Rotation = NumberRange.new(-90, -90)
+        Foam.Orientation = Enum.ParticleOrientation.VelocityParallel
+        Foam.Parent = Attachment
+        Part.Parent = Workspace
+    end
+
+    do --// Slash
+        local Part = Instance.new("Part")
+        Part.Parent = ReplicatedStorage
+
+        local Attachment = Instance.new("Attachment")
+        Attachment.Parent = Part
+
+        Storage.HitEffect["Slash"] = Attachment
+
+        local Crescents = Instance.new("ParticleEmitter")
+        Crescents.Name = "Crescents"
+        Crescents.Lifetime = NumberRange.new(0.19, 0.38)
+        Crescents.SpreadAngle = Vector2.new(-360, 360)
+        Crescents.Transparency =
+            NumberSequence.new(
+            {
+                NumberSequenceKeypoint.new(0, 1),
+                NumberSequenceKeypoint.new(0.1932907, 0),
+                NumberSequenceKeypoint.new(0.778754, 0),
+                NumberSequenceKeypoint.new(1, 1)
+            }
+        )
+        Crescents.LightEmission = 10
+        Crescents.Color =
+            ColorSequence.new(
+            {
+                ColorSequenceKeypoint.new(0, Color3.fromRGB(160, 96, 255)),
+                ColorSequenceKeypoint.new(0.3160622, Color3.fromRGB(160, 96, 255)),
+                ColorSequenceKeypoint.new(0.5146805, Color3.fromRGB(154, 82, 255)),
+                ColorSequenceKeypoint.new(1, Color3.fromRGB(160, 96, 255))
+            }
+        )
+        Crescents.VelocitySpread = -360
+        Crescents.Speed = NumberRange.new(0.0826858, 0.0826858)
+        Crescents.Brightness = 4
+        Crescents.Size =
+            NumberSequence.new(
+            {
+                NumberSequenceKeypoint.new(0, 0),
+                NumberSequenceKeypoint.new(0.398774, 8.8026266, 2.2834616),
+                NumberSequenceKeypoint.new(1, 11.477972, 1.860431)
+            }
+        )
+        Crescents.Enabled = false
+        Crescents.ZOffset = 0.4542207
+        Crescents.Rate = 50
+        Crescents.Texture = "rbxassetid://12509373457"
+        Crescents.RotSpeed = NumberRange.new(800, 1000)
+        Crescents.Rotation = NumberRange.new(-360, 360)
+        Crescents.Orientation = Enum.ParticleOrientation.VelocityPerpendicular
+        Crescents.Parent = Attachment
+
+        Part.Parent = Workspace
+    end
+
+    do --// Atomic Slash
+        local Part = Instance.new("Part")
+
+        Part.Parent = ReplicatedStorage
+
+        local Attachment = Instance.new("Attachment")
+        Attachment.Parent = Part
+
+        Storage.HitEffect["Atomic Slash"] = Attachment
+
+        local Crescents = Instance.new("ParticleEmitter")
+        Crescents.Name = "Crescents"
+        Crescents.Lifetime = NumberRange.new(0.19, 0.38)
+        Crescents.SpreadAngle = Vector2.new(-360, 360)
+        Crescents.Transparency =
+            NumberSequence.new(
+            {
+                NumberSequenceKeypoint.new(0, 1),
+                NumberSequenceKeypoint.new(0.1932907, 0),
+                NumberSequenceKeypoint.new(0.778754, 0),
+                NumberSequenceKeypoint.new(1, 1)
+            }
+        )
+        Crescents.LightEmission = 10
+        Crescents.Color = ColorSequence.new(Color3.fromRGB(160, 96, 255))
+        Crescents.VelocitySpread = -360
+        Crescents.Speed = NumberRange.new(0.0826858, 0.0826858)
+        Crescents.Brightness = 4
+        Crescents.Size =
+            NumberSequence.new(
+            {
+                NumberSequenceKeypoint.new(0, 0),
+                NumberSequenceKeypoint.new(0.398774, 8.8026266, 2.2834616),
+                NumberSequenceKeypoint.new(1, 11.477972, 1.860431)
+            }
+        )
+        Crescents.Enabled = false
+        Crescents.ZOffset = 0.4542207
+        Crescents.Rate = 50
+        Crescents.Texture = "rbxassetid://12509373457"
+        Crescents.RotSpeed = NumberRange.new(800, 1000)
+        Crescents.Rotation = NumberRange.new(-360, 360)
+        Crescents.Orientation = Enum.ParticleOrientation.VelocityPerpendicular
+        Crescents.Parent = Attachment
+
+        local Glow = Instance.new("ParticleEmitter")
+        Glow.Name = "Glow"
+        Glow.Lifetime = NumberRange.new(0.16, 0.16)
+        Glow.Transparency =
+            NumberSequence.new(
+            {
+                NumberSequenceKeypoint.new(0, 1),
+                NumberSequenceKeypoint.new(0.1421725, 0.6182796),
+                NumberSequenceKeypoint.new(1, 1)
+            }
+        )
+        Glow.Color = ColorSequence.new(Color3.fromRGB(173, 82, 252))
+        Glow.Speed = NumberRange.new(0, 0)
+        Glow.Brightness = 5
+        Glow.Size = NumberSequence.new(9.1873131, 16.5032349)
+        Glow.Enabled = false
+        Glow.ZOffset = -0.0565939
+        Glow.Rate = 50
+        Glow.Texture = "rbxassetid://8708637750"
+        Glow.Parent = Attachment
+
+        local Effect = Instance.new("ParticleEmitter")
+        Effect.Name = "Effect"
+        Effect.Lifetime = NumberRange.new(0.4, 0.7)
+        Effect.FlipbookLayout = Enum.ParticleFlipbookLayout.Grid4x4
+        Effect.SpreadAngle = Vector2.new(360, -360)
+        Effect.LockedToPart = true
+        Effect.Transparency =
+            NumberSequence.new(
+            {
+                NumberSequenceKeypoint.new(0, 1),
+                NumberSequenceKeypoint.new(0.1070999, 0.19375),
+                NumberSequenceKeypoint.new(0.7761194, 0.88125),
+                NumberSequenceKeypoint.new(1, 1)
+            }
+        )
+        Effect.LightEmission = 1
+        Effect.Color = ColorSequence.new(Color3.fromRGB(173, 82, 252))
+        Effect.Drag = 1
+        Effect.VelocitySpread = 360
+        Effect.Speed = NumberRange.new(0.0036749, 0.0036749)
+        Effect.Brightness = 2.0999999
+        Effect.Size = NumberSequence.new(6.9680691, 9.9213123)
+        Effect.Enabled = false
+        Effect.ZOffset = 0.4777403
+        Effect.Rate = 50
+        Effect.Texture = "rbxassetid://9484012464"
+        Effect.RotSpeed = NumberRange.new(-150, -150)
+        Effect.FlipbookMode = Enum.ParticleFlipbookMode.OneShot
+        Effect.Rotation = NumberRange.new(50, 50)
+        Effect.Orientation = Enum.ParticleOrientation.VelocityPerpendicular
+        Effect.Parent = Attachment
+
+        local Gradient1 = Instance.new("ParticleEmitter")
+        Gradient1.Name = "Gradient1"
+        Gradient1.Lifetime = NumberRange.new(0.3, 0.3)
+        Gradient1.Transparency =
+            NumberSequence.new(
+            {NumberSequenceKeypoint.new(0, 1), NumberSequenceKeypoint.new(0.15, 0.3), NumberSequenceKeypoint.new(1, 1)}
+        )
+        Gradient1.Color = ColorSequence.new(Color3.fromRGB(173, 82, 252))
+        Gradient1.Speed = NumberRange.new(0, 0)
+        Gradient1.Brightness = 6
+        Gradient1.Size = NumberSequence.new(0, 11.6261358)
+        Gradient1.Enabled = false
+        Gradient1.ZOffset = 0.9187313
+        Gradient1.Rate = 50
+        Gradient1.Texture = "rbxassetid://8196169974"
+        Gradient1.Parent = Attachment
+
+        local Shards = Instance.new("ParticleEmitter")
+        Shards.Name = "Shards"
+        Shards.Lifetime = NumberRange.new(0.19, 0.7)
+        Shards.SpreadAngle = Vector2.new(-90, 90)
+        Shards.Color = ColorSequence.new(Color3.fromRGB(179, 145, 253))
+        Shards.Drag = 10
+        Shards.VelocitySpread = -90
+        Shards.Squash =
+            NumberSequence.new(
+            {
+                NumberSequenceKeypoint.new(0, 1),
+                NumberSequenceKeypoint.new(0.5705521, 0.4125001),
+                NumberSequenceKeypoint.new(1, -0.9375)
+            }
+        )
+        Shards.Speed = NumberRange.new(97.7530136, 146.9970093)
+        Shards.Brightness = 4
+        Shards.Size =
+            NumberSequence.new(
+            {
+                NumberSequenceKeypoint.new(0, 0),
+                NumberSequenceKeypoint.new(0.284774, 1.2389833, 0.1534118),
+                NumberSequenceKeypoint.new(1, 0)
+            }
+        )
+        Shards.Enabled = false
+        Shards.Acceleration = Vector3.new(0, -56.961341857910156, 0)
+        Shards.ZOffset = 0.5705321
+        Shards.Rate = 50
+        Shards.Texture = "rbxassetid://8030734851"
+        Shards.Rotation = NumberRange.new(90, 90)
+        Shards.Orientation = Enum.ParticleOrientation.VelocityParallel
+        Shards.Parent = Attachment
+
+        Part.Parent = Workspace
+    end
+
+    -- // Nova
+    do
+        local Part = Instance.new("Part")
+        Part.Parent = ReplicatedStorage
+
+        local Attachment = Instance.new("Attachment")
+        Attachment.Name = "Attachment"
+        Attachment.Parent = Part
+
+        Storage.HitEffect["Nova Impact"] = Attachment
+
+        local ParticleEmitter = Instance.new("ParticleEmitter")
+        ParticleEmitter.Name = "ParticleEmitter"
+        ParticleEmitter.Acceleration = Vector3.new(0, 0, 1)
+        ParticleEmitter.Color =
+            ColorSequence.new(
+            {
+                ColorSequenceKeypoint.new(0, Color3.fromRGB(0, 0, 0)),
+                ColorSequenceKeypoint.new(0.495, Color3.fromRGB(255, 0, 0)),
+                ColorSequenceKeypoint.new(1, Color3.fromRGB(0, 0, 0))
+            }
+        )
+        ParticleEmitter.Lifetime = NumberRange.new(0.5, 0.5)
+        ParticleEmitter.LightEmission = 1
+        ParticleEmitter.LockedToPart = true
+        ParticleEmitter.Rate = 1
+        ParticleEmitter.Rotation = NumberRange.new(0, 360)
+        ParticleEmitter.Size =
+            NumberSequence.new(
+            {
+                NumberSequenceKeypoint.new(0, 1),
+                NumberSequenceKeypoint.new(1, 10),
+                NumberSequenceKeypoint.new(1, 1)
+            }
+        )
+        ParticleEmitter.Speed = NumberRange.new(0, 0)
+        ParticleEmitter.Texture = "rbxassetid://1084991215"
+        ParticleEmitter.Transparency =
+            NumberSequence.new(
+            {
+                NumberSequenceKeypoint.new(0, 0),
+                NumberSequenceKeypoint.new(0, 0.1),
+                NumberSequenceKeypoint.new(0.534, 0.25),
+                NumberSequenceKeypoint.new(1, 0.5),
+                NumberSequenceKeypoint.new(1, 0)
+            }
+        )
+        ParticleEmitter.ZOffset = 1
+        ParticleEmitter.Parent = Attachment
+
+        local ParticleEmitter1 = Instance.new("ParticleEmitter")
+        ParticleEmitter1.Name = "ParticleEmitter"
+        ParticleEmitter1.Acceleration = Vector3.new(0, 1, -0.001)
+        ParticleEmitter1.Color =
+            ColorSequence.new(
+            {
+                ColorSequenceKeypoint.new(0, Color3.fromRGB(0, 0, 0)),
+                ColorSequenceKeypoint.new(0.495, Color3.fromRGB(255, 0, 0)),
+                ColorSequenceKeypoint.new(1, Color3.fromRGB(0, 0, 0))
+            }
+        )
+        ParticleEmitter1.Lifetime = NumberRange.new(0.5, 0.5)
+        ParticleEmitter1.LightEmission = 1
+        ParticleEmitter1.LockedToPart = true
+        ParticleEmitter1.Orientation = Enum.ParticleOrientation.VelocityPerpendicular
+        ParticleEmitter1.Rate = 1
+        ParticleEmitter1.Rotation = NumberRange.new(0, 360)
+        ParticleEmitter1.Size =
+            NumberSequence.new(
+            {
+                NumberSequenceKeypoint.new(0, 1),
+                NumberSequenceKeypoint.new(1, 10),
+                NumberSequenceKeypoint.new(1, 1)
+            }
+        )
+        ParticleEmitter1.Speed = NumberRange.new(0, 0)
+        ParticleEmitter1.Texture = "rbxassetid://1084991215"
+        ParticleEmitter1.Transparency =
+            NumberSequence.new(
+            {
+                NumberSequenceKeypoint.new(0, 0),
+                NumberSequenceKeypoint.new(0, 0.1),
+                NumberSequenceKeypoint.new(0.534, 0.25),
+                NumberSequenceKeypoint.new(1, 0.5),
+                NumberSequenceKeypoint.new(1, 0)
+            }
+        )
+        ParticleEmitter1.ZOffset = 1
+        ParticleEmitter1.Parent = Attachment
+    end
+end
+
+function TriggerHitEffect()
+    local effectAttachment = Storage.HitEffect[setting.hiteffect]
+    if not effectAttachment then
+        return
+    end
+
+    for _, emitter in pairs(effectAttachment:GetChildren()) do
+        if emitter:IsA("ParticleEmitter") then
+            emitter:Emit(emitter.Rate)
+        end
+    end
+end
+
+-- Local-only body chams
+function ApplyChams()
+    local char = LocalPlayer.Character
+    if not char then
+        return
+    end
+
+    for _, part in ipairs(char:GetDescendants()) do
+        if part:IsA("BasePart") and part.Name ~= "HumanoidRootPart" then
+            part.Material = Enum.Material[setting.Visuals.BodyCham]
+            part.Color = Color3.fromRGB(255, 200, 200)
+        end
+    end
+end
+
+-- Crosshair (spinning)
+local crossLines = {}
+local spinDeg = 0
+for i = 1, 4 do
+    local line = Drawing.new("Line")
+    line.Thickness = 2
+    line.Color = Color3.fromRGB(255, 128, 255)
+    line.Visible = true
+    crossLines[i] = line
+end
+
+RunService.RenderStepped:Connect(
+    function()
+        if not setting.Self.Crosshair then
+            return
+        end
+        local center = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y / 2)
+        spinDeg = (spinDeg + 2) % 360
+
+        for i = 1, 4 do
+            local angle = math.rad(spinDeg + (i - 1) * 90)
+            local offset = Vector2.new(math.cos(angle), math.sin(angle)) * 10
+            crossLines[i].From = center
+            crossLines[i].To = center + offset
+            crossLines[i].Visible = true
+        end
+    end
+)
+
+-- Apply chams on character spawn
+LocalPlayer.CharacterAdded:Connect(
+    function()
+        task.wait(1)
+        if setting.Self.Chams then
+            ApplyChams()
+        end
+    end
+)
+
+-- Drawing Helpers
+local function newLine(color)
+    local line = Drawing.new("Line")
+    line.Thickness = 2
+    line.Color = color
+    line.Visible = true
+    return line
+end
+
+local function newText(text, position, color)
+    local label = Drawing.new("Text")
+    label.Text = text
+    label.Size = 13
+    label.Position = position
+    label.Color = color
+    label.Visible = true
+    return label
+end
+
+RunService.RenderStepped:Connect(
+    function()
+        if not setting.ESP.Enabled then
+            return
+        end
+
+        for _, plr in ipairs(Players:GetPlayers()) do
+            if plr ~= LocalPlayer and plr.Character and plr.Character:FindFirstChild("HumanoidRootPart") then
+                local hrp = plr.Character.HumanoidRootPart
+                local pos, onScreen = Camera:WorldToViewportPoint(hrp.Position)
+                local color = onScreen and Color3.fromRGB(0, 255, 0) or Color3.fromRGB(255, 0, 0)
+
+                -- Tracer
+                if setting.ESP.Tracer then
+                    local line = newLine(color)
+                    line.From = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y)
+                    line.To = Vector2.new(pos.X, pos.Y)
+                end
+
+                -- Box
+                if setting.ESP.BoxEsp then
+                    local box = Drawing.new("Square")
+                    box.Color = color
+                    box.Size = Vector2.new(45, 65)
+                    box.Position = Vector2.new(pos.X - 22, pos.Y - 50)
+                    box.Visible = true
+                end
+
+                -- Name
+                if setting.ESP.NameEsp then
+                    newText(plr.Name, Vector2.new(pos.X - 25, pos.Y - 65), Color3.fromRGB(255, 255, 255))
+                end
+
+                -- Health
+                if setting.ESP.hpesp and plr.Character:FindFirstChild("Humanoid") then
+                    newText(
+                        "HP: " .. math.floor(plr.Character.Humanoid.Health),
+                        Vector2.new(pos.X - 25, pos.Y - 80),
+                        Color3.fromRGB(255, 0, 0)
+                    )
+                end
+
+                -- Skeleton (very simple)
+                if setting.ESP.Skeleton then
+                    local head = plr.Character:FindFirstChild("Head")
+                    local torso = plr.Character:FindFirstChild("UpperTorso")
+                    if head and torso then
+                        local hPos = Camera:WorldToViewportPoint(head.Position)
+                        local tPos = Camera:WorldToViewportPoint(torso.Position)
+                        local line = newLine(color)
+                        line.From = Vector2.new(hPos.X, hPos.Y)
+                        line.To = Vector2.new(tPos.X, tPos.Y)
+                    end
+                end
+            end
+        end
+    end
+)
+
+local ScreenGui = Instance.new("ScreenGui", game.CoreGui)
+ScreenGui.ResetOnSpawn = false
+
+local function makeButton(name, pos, callback)
+    local frame = Instance.new("Frame", ScreenGui)
+    frame.Size = UDim2.new(0, 100, 0, 30)
+    frame.Position = pos
+    frame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+    frame.BorderSizePixel = 1
+
+    local btn = Instance.new("TextButton", frame)
+    btn.Size = UDim2.new(1, 0, 1, 0)
+    btn.Text = name
+    btn.TextColor3 = Color3.new(1, 1, 1)
+    btn.BackgroundTransparency = 1
+    btn.MouseButton1Click:Connect(callback)
+
+    return frame, btn
+end
+
+-- Camlock toggle
+local lockBtn, lockText =
+    makeButton(
+    "Sher Revamp [OFF]",
+    UDim2.new(0, 50, 0, 500),
+    function()
+        local newState = not setting.camlock.enabled
+
+        setting.camlock.enabled = newState
+        setting.targetaim = newState
+
+        lockText.Text = "Sher Revamp [" .. (newState and "ON" or "OFF") .. "]"
+        lockText.TextColor3 = newState and Color3.fromRGB(0, 255, 0) or Color3.new(1, 1, 1)
+    end
+)
+
+-- Auto Air toggle
+local airBtn, airText =
+    makeButton(
+    "AutoAir [OFF]",
+    UDim2.new(0, 50, 0, 450),
+    function()
+        setting.prediction.autopred = not setting.prediction.autopred
+        airText.Text = "AutoAir [" .. (setting.prediction.autopred and "ON" or "OFF") .. "]"
+        airText.TextColor3 = setting.prediction.autopred and Color3.fromRGB(0, 255, 0) or Color3.new(1, 1, 1)
+    end
+)
+
+-- CFrame toggle
+local cframeBtn, cframeText =
+    makeButton(
+    "CFrame [OFF]",
+    UDim2.new(0, 50, 0, 400),
+    function()
+        setting.Misc.CFrameSpeed = setting.Misc.CFrameSpeed == 0 and 2 or 0
+        cframeText.Text = "CFrame [" .. (setting.Misc.CFrameSpeed > 0 and "ON" or "OFF") .. "]"
+        cframeText.TextColor3 = setting.Misc.CFrameSpeed > 0 and Color3.fromRGB(0, 255, 0) or Color3.new(1, 1, 1)
+    end
+)
+
+local Library =
+    loadstring(game:HttpGet("https://raw.githubusercontent.com/LionTheGreatRealFrFr/MobileLinoriaLib/main/Library.lua"))(
+
+)
+local ThemeManager =
+    loadstring(
+    game:HttpGet("https://raw.githubusercontent.com/LionTheGreatRealFrFr/MobileLinoriaLib/main/addons/ThemeManager.lua")
+)()
+local SaveManager =
+    loadstring(
+    game:HttpGet("https://raw.githubusercontent.com/LionTheGreatRealFrFr/MobileLinoriaLib/main/addons/SaveManager.lua")
+)()
+
+local Window =
+    Library:CreateWindow(
+    {
+        Title = "sherW Revamp | Revamped by ghxt",
+        Center = true,
+        AutoShow = true
+    }
+)
+
+local Tabs = {
+    Main = Window:AddTab("Main"),
+    Visuals = Window:AddTab("Visuals"),
+    Self = Window:AddTab("Self Only"),
+    UI = Window:AddTab("UI")
+}
+
+-- MAIN TAB
+local MainSection = Tabs.Main:AddLeftGroupbox("Main Settings")
+MainSection:AddInput(
+    "Prediction",
+    {
+        Text = "Prediction",
+        Default = tostring(setting.prediction.prediction),
+        Callback = function(val)
+            setting.prediction.prediction = tonumber(val)
+        end
+    }
+)
+MainSection:AddInput(
+    "Smoothness",
+    {
+        Text = "Smoothness",
+        Default = tostring(setting.camlock.smoothvalue),
+        Callback = function(val)
+            setting.camlock.smoothvalue = tonumber(val)
+        end
+    }
+)
+MainSection:AddInput(
+    "Air Delay",
+    {
+        Text = "Air Delay",
+        Default = tostring(setting.prediction.delay),
+        Callback = function(val)
+            setting.prediction.delay = tonumber(val)
+        end
+    }
+)
+MainSection:AddDropdown(
+    "AimPart",
+    {
+        Text = "AimPart",
+        Values = {
+            "Head",
+            "UpperTorso",
+            "HumanoidRootPart",
+            "LowerTorso",
+            "Right Arm",
+            "Left Arm",
+            "Right Leg",
+            "Left Leg"
+        },
+        Default = "UpperTorso",
+        Callback = function(val)
+            setting.aimpart = val
+        end
+    }
+)
+MainSection:AddDropdown(
+    "AirPart",
+    {
+        Text = "AirPart",
+        Values = {
+            "Head",
+            "UpperTorso",
+            "HumanoidRootPart",
+            "LowerTorso",
+            "Right Arm",
+            "Left Arm",
+            "Right Leg",
+            "Left Leg"
+        },
+        Default = "UpperTorso",
+        Callback = function(val)
+            setting.airpart = val
+        end
+    }
+)
+
+-- VISUALS TAB
+local VisualSection = Tabs.Visuals:AddLeftGroupbox("Effects")
+VisualSection:AddDropdown(
+    "Hit Sound",
+    {
+        Text = "Hit Sound",
+        Values = {"RIFK7", "UwU", "Bonk", "Gamesense", "Vine", "Click", "Saber"},
+        Default = "RIFK7",
+        Callback = function(val)
+            setting.hitsound = val
+        end
+    }
+)
+VisualSection:AddDropdown(
+    "Hit Effect",
+    {
+        Text = "Hit Effect",
+        Values = {"Crescent Slash", "Cosmic Explosion", "Coom", "Slash", "Atomic Slash", "Nova Impact"},
+        Default = "Crescent Slash",
+        Callback = function(val)
+            setting.hiteffect = val
+        end
+    }
+)
+
+-- SELF TAB
+local SelfSection = Tabs.Self:AddLeftGroupbox("Chams & Crosshair")
+SelfSection:AddDropdown(
+    "BodyCham",
+    {
+        Text = "Body Cham",
+        Values = {"ForceField", "Plastic", "Neon", "Glass"},
+        Default = "ForceField",
+        Callback = function(val)
+            setting.Visuals.BodyCham = val
+        end
+    }
+)
+SelfSection:AddToggle(
+    "Crosshair",
+    {
+        Text = "Spinning Crosshair",
+        Default = true,
+        Callback = function(val)
+            setting.Self.Crosshair = val
+        end
+    }
+)
+
+-- UI TAB
+local UISection = Tabs.UI:AddLeftGroupbox("UI Controls")
+UISection:AddButton(
+    "Unload",
+    function()
+        Library:Unload()
+    end
+)
+UISection:AddLabel("Revamped by ghxt")
+
+UISection:AddLabel("Toggle UI"):AddKeyPicker(
+    "MenuKey",
+    {
+        Default = "RightShift",
+        Text = "Menu Keybind",
+        NoUI = false
+    }
+)
+Library.ToggleKeybind = Options.MenuKey
+
+ThemeManager:SetLibrary(Library)
+SaveManager:SetLibrary(Library)
+SaveManager:IgnoreThemeSettings()
+SaveManager:SetIgnoreIndexes({"MenuKey"})
+ThemeManager:SetFolder("sherW")
+SaveManager:SetFolder("sherW/configs")
+SaveManager:BuildConfigSection(Tabs.UI)
+ThemeManager:ApplyToTab(Tabs.UI)
+
+-- Open Library button
+local libBtn = Instance.new("TextButton", ScreenGui)
+libBtn.Size = UDim2.new(0, 50, 0, 50)
+libBtn.Position = UDim2.new(0, 10, 1, -60)
+libBtn.Text = "☰"
+libBtn.TextSize = 20
+libBtn.BackgroundColor3 = Color3.fromRGB(75, 0, 130)
+libBtn.TextColor3 = Color3.new(1, 1, 1)
+libBtn.BorderSizePixel = 0
+libBtn.Active = true
+libBtn.Draggable = true
+
+libBtn.MouseButton1Click:Connect(
+    function()
+        if Library then
+            Library:Toggle()
+        end
+    end
+)
+
+-- UI Credit
+warn("sherW Revamp Loaded | Revamped by ghxt")
